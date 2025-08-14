@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Video ⇄ Audio Converter (Rights‑Respecting)</title>
+  <meta name="description" content="Paste a YouTube link (for rights‑cleared content) or upload a local file. Convert to MP3/MP4 in the browser. No tracking, no login." />
+  <style>
+    /* ==============================
+       Minimal, modern UI 스타일 (미국 사용자 대상)
+       - 시스템 폰트 스택
+       - 다크/라이트 자동
+       ============================== */
+    :root {
+      --bg: #0b0c0f;
+      --panel: #12141a;
+      --text: #e7ecf3;
+      --muted: #a5b0c2;
+      --accent: #6aa6ff;
+      --accent-2: #b388ff;
+      --ok: #35d18a;
+      --warn: #ffb020;
+      --err: #ff5a6b;
+      --border: #262a33;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f7f9fc;
+        --panel: #ffffff;
+        --text: #101626;
+        --muted: #445066;
+        --accent: #2b6dff;
+        --accent-2: #6a39ff;
+        --ok: #008a52;
+        --warn: #995000;
+        --err: #b4002e;
+        --border: #e5e9f2;
+        --shadow: 0 10px 30px rgba(0,0,0,.08);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 10% -10%, rgba(106,166,255,0.12), transparent 60%),
+                  radial-gradient(1000px 700px at 110% 10%, rgba(179,136,255,0.12), transparent 60%), var(--bg);
+      color: var(--text);
+    }
+    .container { max-width: 960px; margin: 40px auto; padding: 0 16px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom: 24px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .logo { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: var(--shadow); }
+    h1 { font-size: clamp(20px, 3vw, 28px); margin:0; letter-spacing: 0.2px; }
+    .badges { display:flex; gap:8px; flex-wrap:wrap; }
+    .badge { font-size: 12px; padding:6px 10px; border-radius: 999px; border:1px solid var(--border); background: color-mix(in oklab, var(--panel) 70%, transparent); color: var(--muted); }
+
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding: 20px; }
+    .row { display:grid; grid-template-columns: 1fr; gap: 16px; }
+    @media (min-width: 860px) { .row { grid-template-columns: 1.35fr 1fr; } }
+
+    label { display:block; font-weight: 600; margin: 0 0 8px; }
+    input[type="text"], select, input[type="file"] {
+      width: 100%; padding: 12px 14px; border-radius: 12px; border:1px solid var(--border); background: transparent; color: var(--text);
+      outline: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
+    }
+    input[type="text"]::placeholder { color: var(--muted); }
+
+    .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+    .btn {
+      appearance: none; border:1px solid var(--border); background: linear-gradient(180deg, color-mix(in oklab, var(--panel) 70%, transparent), color-mix(in oklab, var(--panel) 40%, transparent));
+      color: var(--text); padding: 12px 16px; border-radius: 12px; cursor: pointer; font-weight: 600; transition: transform .05s ease, border-color .2s ease; 
+    }
+    .btn:hover { border-color: color-mix(in oklab, var(--accent) 35%, var(--border)); }
+    .btn:active { transform: translateY(1px); }
+    .btn.primary { background: linear-gradient(135deg, color-mix(in oklab, var(--accent) 30%, transparent), color-mix(in oklab, var(--accent-2) 30%, transparent)); border-color: transparent; }
+    .btn[disabled] { opacity: .5; cursor: not-allowed; }
+
+    .hint { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .check { display:flex; align-items:center; gap:10px; }
+
+    .stack { display:flex; flex-direction:column; gap:12px; }
+
+    .tabs { display:flex; gap:8px; margin-bottom: 12px; }
+    .tab { padding:10px 14px; border-radius: 999px; border:1px solid var(--border); cursor:pointer; font-weight:600; background: transparent; color: var(--muted); }
+    .tab.active { color: var(--text); border-color: color-mix(in oklab, var(--accent) 35%, var(--border)); }
+
+    .progress {
+      width:100%; height: 10px; border-radius: 999px; background: color-mix(in oklab, var(--panel) 75%, transparent); overflow:hidden; border:1px solid var(--border);
+    }
+    .progress > i { display:block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s ease; }
+
+    .log { white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); background: color-mix(in oklab, var(--panel) 85%, transparent); border:1px solid var(--border); border-radius: 12px; padding: 12px; max-height: 220px; overflow:auto; }
+
+    footer { margin-top: 20px; font-size: 12px; color: var(--muted); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <h1>Video ⇄ Audio Converter</h1>
+      </div>
+      <div class="badges">
+        <span class="badge">No sign‑up</span>
+        <span class="badge">Client‑side (ffmpeg.wasm)</span>
+        <span class="badge">Privacy‑friendly</span>
+      </div>
+    </header>
+
+    <div class="row">
+      <!-- 좌측: YouTube 링크 탭 + 파일 탭 -->
+      <section class="card">
+        <div class="tabs" role="tablist" aria-label="Input mode">
+          <button class="tab active" id="tab-link" role="tab" aria-controls="panel-link" aria-selected="true">From YouTube Link*</button>
+          <button class="tab" id="tab-file" role="tab" aria-controls="panel-file" aria-selected="false">From Local File (In‑Browser)</button>
+        </div>
+
+        <!-- YouTube 링크 패널 (백엔드 필요: 권리 확인/합법적 사용 전제) -->
+        <div id="panel-link" role="tabpanel" aria-labelledby="tab-link" class="stack">
+          <div>
+            <label for="yt-url">Paste YouTube URL</label>
+            <input id="yt-url" type="text" placeholder="https://www.youtube.com/watch?v=XXXXXXXXXXX or https://youtu.be/XXXXXXXXXXX" autocomplete="off" />
+          </div>
+          <div class="controls">
+            <label class="check">
+              <input type="checkbox" id="rights-ok" />
+              <span class="hint">I confirm I own the rights or the content is licensed for download (e.g., CC). *</span>
+            </label>
+          </div>
+          <div class="controls">
+            <select id="format">
+              <option value="mp3">MP3 (audio only)</option>
+              <option value="mp4">MP4 (video)</option>
+            </select>
+            <select id="quality">
+              <option value="best">Best available</option>
+              <option value="1080p">1080p</option>
+              <option value="720p">720p</option>
+              <option value="480p">480p</option>
+              <option value="audio">Audio‑only</option>
+            </select>
+            <button class="btn primary" id="btn-start" disabled>Request Convert</button>
+          </div>
+          <p class="hint">*This link mode requires your own server‑side endpoint that verifies rights and performs the conversion. This page <b>does not</b> bypass platform protections and does not download from YouTube directly.</p>
+          <div id="server-status" class="hint"></div>
+        </div>
+
+        <!-- 파일 업로드 패널 (완전 클라이언트 사이드) -->
+        <div id="panel-file" role="tabpanel" aria-labelledby="tab-file" hidden class="stack">
+          <div>
+            <label for="local-file">Upload a video/audio file (we never upload your file)</label>
+            <input id="local-file" type="file" accept="video/*,audio/*" />
+          </div>
+          <div class="controls">
+            <button class="btn" id="btn-mp3" disabled>Convert to MP3</button>
+            <button class="btn" id="btn-mp4" disabled>Convert to MP4</button>
+          </div>
+          <div>
+            <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+          </div>
+          <div id="log" class="log" aria-live="polite" aria-atomic="false"></div>
+          <div id="downloads" class="stack"></div>
+        </div>
+      </section>
+
+      <!-- 우측: 안내/면책 -->
+      <aside class="card">
+        <h2 style="margin-top:0">Legal & Usage Notes</h2>
+        <ul style="margin-top:8px; line-height:1.6; padding-left:18px;">
+          <li>This demo is designed for <b>rights‑cleared content only</b> (your own videos, or content explicitly licensed for download, such as certain Creative Commons videos).</li>
+          <li>It does <b>not</b> circumvent YouTube or any platform protections and requires your own backend for link‑based conversions.</li>
+          <li>For your own YouTube uploads, use <i>YouTube Studio → Content → Download</i>. For other content, obtain permission and verify the license.</li>
+          <li>Local file conversion uses <code>ffmpeg.wasm</code> and runs entirely in your browser; large files may be slow on low‑end devices.</li>
+          <li>By using this page, you agree to comply with all applicable Terms (e.g., <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">YouTube Terms of Service</a>) and copyright laws.</li>
+        </ul>
+        <hr style="border:none; border-top:1px solid var(--border); margin:16px 0;">
+        <p class="hint">Tip: You can deploy this page statically (e.g., GitHub Pages, Netlify). If you add a compliant backend later, the Link mode will work without changing the UI.</p>
+      </aside>
+    </div>
+
+    <footer>
+      <p>© 2025. Client‑side demo for rights‑respecting media conversion. | Built with <code>ffmpeg.wasm</code>.</p>
+    </footer>
+  </div>
+
+  <!-- ffmpeg.wasm UMD (브라우저 전용) -->
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+  <script>
+    // ==========================================================
+    // ⚠️ 중요(한국어 주석): YouTube 음원/영상 직접 다운로드는
+    // 플랫폼 약관/저작권을 위반할 수 있으므로, 이 코드는 "바로 다운로드"
+    // 기능을 포함하지 않습니다. 대신 두 가지 모드를 제공합니다.
+    // 1) 링크 모드: 권리 확인을 전제로, 사용자가 별도 백엔드(API)를
+    //    직접 구현했을 때만 호출(여기서는 샘플 fetch 요청만 구현).
+    // 2) 파일 모드: 사용자가 직접 업로드한 로컬 파일을 브라우저에서
+    //    ffmpeg.wasm으로 MP3/MP4로 변환(합법적이며 서버 미사용).
+    // ==========================================================
+
+    // ---------- 공통 유틸 ----------
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+    // 간단한 YouTube URL 정규식 (형식 검증용)
+    const YT_REGEX = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{11})(?:[&#?].*)?$/i;
+
+    // 탭 전환
+    const tabLink = $('#tab-link');
+    const tabFile = $('#tab-file');
+    const panelLink = $('#panel-link');
+    const panelFile = $('#panel-file');
+    tabLink.addEventListener('click', () => {
+      tabLink.classList.add('active'); tabFile.classList.remove('active');
+      panelLink.hidden = false; panelFile.hidden = true;
+      tabLink.setAttribute('aria-selected', 'true');
+      tabFile.setAttribute('aria-selected', 'false');
+    });
+    tabFile.addEventListener('click', () => {
+      tabFile.classList.add('active'); tabLink.classList.remove('active');
+      panelFile.hidden = false; panelLink.hidden = true;
+      tabFile.setAttribute('aria-selected', 'true');
+      tabLink.setAttribute('aria-selected', 'false');
+    });
+
+    // ---------- 링크 모드 (백엔드 필요) ----------
+    const ytUrl = $('#yt-url');
+    const rightsOk = $('#rights-ok');
+    const formatSel = $('#format');
+    const qualitySel = $('#quality');
+    const btnStart = $('#btn-start');
+    const serverStatus = $('#server-status');
+
+    function validateLinkForm() {
+      const ok = YT_REGEX.test(ytUrl.value.trim()) && rightsOk.checked;
+      btnStart.disabled = !ok;
+    }
+    ytUrl.addEventListener('input', validateLinkForm);
+    rightsOk.addEventListener('change', validateLinkForm);
+
+    btnStart.addEventListener('click', async () => {
+      // (한국어) 여기서는 백엔드가 있어야만 실제 변환/다운로드가 가능합니다.
+      // 사용자 소유/허가된 콘텐츠만 처리하도록 백엔드를 설계하세요.
+      // 예시 API 스키마: POST /api/convert { url, format, quality }
+      const url = ytUrl.value.trim();
+      if (!YT_REGEX.test(url) || !rightsOk.checked) return;
+
+      btnStart.disabled = true;
+      serverStatus.textContent = 'Requesting your server… (this demo does not convert YouTube directly)';
+      try {
+        // (한국어) 아래 fetch는 예시입니다. 실제 서버 주소로 교체하세요.
+        const res = await fetch('/api/convert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, format: formatSel.value, quality: qualitySel.value })
+        });
+
+        if (!res.ok) throw new Error('Server responded with status ' + res.status);
+        const data = await res.json();
+        // 기대 응답 예시: { downloadUrl: 'https://your-server.com/files/abc.mp3', filename: 'title.mp3' }
+        if (!data.downloadUrl) throw new Error('downloadUrl missing in response');
+
+        const a = document.createElement('a');
+        a.href = data.downloadUrl;
+        if (data.filename) a.download = data.filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        serverStatus.textContent = 'Download started via your server.';
+      } catch (err) {
+        console.error(err);
+        serverStatus.textContent = 'Server error: ' + err.message + ' — Add your compliant backend to enable link mode.';
+      } finally {
+        btnStart.disabled = false;
+      }
+    });
+
+    // ---------- 파일 모드 (브라우저 내 변환) ----------
+    const fileInput = $('#local-file');
+    const btnMp3 = $('#btn-mp3');
+    const btnMp4 = $('#btn-mp4');
+    const bar = $('#bar');
+    const logEl = $('#log');
+    const dl = $('#downloads');
+
+    let fileRef = null;
+
+    // 파일 선택 상태 반영
+    fileInput.addEventListener('change', () => {
+      fileRef = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+      const enabled = !!fileRef;
+      btnMp3.disabled = !enabled;
+      btnMp4.disabled = !enabled;
+      logEl.textContent = fileRef ? `Loaded: ${fileRef.name} (\u2248 ${(fileRef.size/1e6).toFixed(1)} MB)` : '';
+      bar.style.width = '0%';
+      dl.innerHTML = '';
+    });
+
+    // ffmpeg.wasm 로더 준비
+    const { createFFmpeg, fetchFile } = window.FFmpeg;
+    const ffmpeg = createFFmpeg({
+      log: true,
+      corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js'
+    });
+
+    ffmpeg.setLogger(({ type, message }) => {
+      // (한국어) ffmpeg 내부 로그를 사용자에게 보여줌 (디버깅/진행상황 파악)
+      logEl.textContent += `\n[${type}] ${message}`;
+      logEl.scrollTop = logEl.scrollHeight;
+    });
+    ffmpeg.setProgress(({ ratio }) => {
+      // (한국어) 변환 진행률 표시 (0~1)
+      bar.style.width = `${Math.min(100, Math.round((ratio || 0) * 100))}%`;
+    });
+
+    async function ensureFFmpeg() {
+      if (!ffmpeg.isLoaded()) {
+        logEl.textContent = 'Loading ffmpeg.wasm (first time may take ~10–20s)…';
+        await ffmpeg.load();
+        logEl.textContent += '\nReady.';
+      }
+    }
+
+    function makeDownload(data, filename, mime) {
+      const blob = new Blob([data.buffer], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.className = 'btn'; a.textContent = `Download ${filename}`;
+      const wrap = document.createElement('div');
+      wrap.appendChild(a);
+      dl.appendChild(wrap);
+    }
+
+    async function writeInputToFS(name, file) {
+      const data = await fetchFile(file);
+      ffmpeg.FS('writeFile', name, data);
+    }
+
+    // MP3 변환 (오디오 추출)
+    btnMp3.addEventListener('click', async () => {
+      if (!fileRef) return;
+      btnMp3.disabled = true; btnMp4.disabled = true; dl.innerHTML = '';
+      try {
+        await ensureFFmpeg();
+        const inName = 'input';
+        const outName = 'output.mp3';
+        await writeInputToFS(inName, fileRef);
+        // (한국어) -vn: 비디오 스트림 제거, -c:a libmp3lame: mp3 인코더, -q:a 2: 품질(낮을수록 좋음)
+        await ffmpeg.run('-i', inName, '-vn', '-c:a', 'libmp3lame', '-q:a', '2', outName);
+        const data = ffmpeg.FS('readFile', outName);
+        const base = (fileRef.name.replace(/\.[^.]+$/, '')) || 'audio';
+        makeDownload(data, `${base}.mp3`, 'audio/mpeg');
+      } catch (e) {
+        console.error(e);
+        logEl.textContent += `\nError: ${e.message}`;
+      } finally {
+        btnMp3.disabled = false; btnMp4.disabled = false;
+      }
+    });
+
+    // MP4 변환 (영상 컨테이너)
+    btnMp4.addEventListener('click', async () => {
+      if (!fileRef) return;
+      btnMp3.disabled = true; btnMp4.disabled = true; dl.innerHTML = '';
+      try {
+        await ensureFFmpeg();
+        const inName = 'input2';
+        const outName = 'output.mp4';
+        await writeInputToFS(inName, fileRef);
+        // (한국어) 먼저 스트림 복사 시도(빠름) — 실패 시 재인코딩으로 폴백
+        try {
+          await ffmpeg.run('-i', inName, '-c', 'copy', outName);
+        } catch (_) {
+          // (한국어) 재인코딩 폴백: H.264 + AAC (환경에 따라 libx264/ aac 지원 여부가 다를 수 있음)
+          await ffmpeg.run('-i', inName, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-c:a', 'aac', '-b:a', '192k', outName);
+        }
+        const data = ffmpeg.FS('readFile', outName);
+        const base = (fileRef.name.replace(/\.[^.]+$/, '')) || 'video';
+        makeDownload(data, `${base}.mp4`, 'video/mp4');
+      } catch (e) {
+        console.error(e);
+        logEl.textContent += `\nError: ${e.message}`;
+      } finally {
+        btnMp3.disabled = false; btnMp4.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
