@@ -342,7 +342,7 @@
       }
 
       if (!FF) {
-        throw new Error('Unable to load @ffmpeg/ffmpeg. Check network/CSP/ad‑block.');
+        throw new Error('Unable to load @ffmpeg/ffmpeg. Check network/CSP/ad-block.');
       }
 
       const { createFFmpeg, fetchFile } = FF;
@@ -362,14 +362,16 @@
         bar.style.width = `${Math.min(100, Math.round((ratio || 0) * 100))}%`;
       });
 
-      _fetchFile = fetchFile; // 전역 참조 보관
+      try {
+        _fetchFile = fetchFile; // 전역 참조 보관
 
-      logEl.textContent += '
-Loading core… (first time may take ~10–20s)';
-      await ffmpeg.load();
-      ffmpegLoaded = true;
-      logEl.textContent += '
-Ready.';
+        logEl.textContent += 'Loading core… (first time may take ~10–20s)';
+        await ffmpeg.load();
+        ffmpegLoaded = true;
+        logEl.textContent += 'Ready.';
+      } catch (e) {
+        console.warn(e.message);
+      }
     }
 
     
