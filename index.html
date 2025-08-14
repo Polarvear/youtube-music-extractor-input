@@ -365,10 +365,10 @@
       try {
         _fetchFile = fetchFile; // 전역 참조 보관
 
-        logEl.textContent += '\nLoading core… (first time may take ~10–20s)';
+        //logEl.textContent += '\nLoading core… (first time may take ~10–20s)';
         await ffmpeg.load();
         ffmpegLoaded = true;
-        logEl.textContent += '\nReady.';
+        //logEl.textContent += '\nReady.';
       } catch (e) {
         console.warn(e.message);
       }
