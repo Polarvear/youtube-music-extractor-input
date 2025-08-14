@@ -298,30 +298,81 @@
       dl.innerHTML = '';
     });
 
-    // ffmpeg.wasm 로더 준비
-    const { createFFmpeg, fetchFile } = window.FFmpeg;
-    const ffmpeg = createFFmpeg({
-      log: true,
-      corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js'
-    });
+    // =====================
+    // ffmpeg.wasm 안전 로더
+    // =====================
+    let ffmpeg = null;
+    let _fetchFile = null;
+    let ffmpegLoaded = false;
 
-    ffmpeg.setLogger(({ type, message }) => {
-      // (한국어) ffmpeg 내부 로그를 사용자에게 보여줌 (디버깅/진행상황 파악)
-      logEl.textContent += `\n[${type}] ${message}`;
-      logEl.scrollTop = logEl.scrollHeight;
-    });
-    ffmpeg.setProgress(({ ratio }) => {
-      // (한국어) 변환 진행률 표시 (0~1)
-      bar.style.width = `${Math.min(100, Math.round((ratio || 0) * 100))}%`;
-    });
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = false; // 파서 차단 보장
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('Failed to load ' + src));
+        document.head.appendChild(s);
+      });
+    }
 
     async function ensureFFmpeg() {
-      if (!ffmpeg.isLoaded()) {
-        logEl.textContent = 'Loading ffmpeg.wasm (first time may take ~10–20s)…';
-        await ffmpeg.load();
-        logEl.textContent += '\nReady.';
+      if (ffmpegLoaded) return;
+
+      // 1) 글로벌 확인
+      let FF = window.FFmpeg || (typeof FFmpeg !== 'undefined' ? FFmpeg : null);
+
+      // 2) 없으면 대체 CDN 시도
+      if (!FF) {
+        logEl.textContent = 'Loading ffmpeg.wasm library…';
+        const cdns = [
+          'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js',
+          'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js',
+          'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg/dist/umd/ffmpeg.js'
+        ];
+        for (const src of cdns) {
+          try {
+            await loadScript(src);
+            FF = window.FFmpeg || (typeof FFmpeg !== 'undefined' ? FFmpeg : null);
+            if (FF) break;
+          } catch (e) {
+            console.warn(e.message);
+          }
+        }
       }
+
+      if (!FF) {
+        throw new Error('Unable to load @ffmpeg/ffmpeg. Check network/CSP/ad‑block.');
+      }
+
+      const { createFFmpeg, fetchFile } = FF;
+      ffmpeg = createFFmpeg({
+        log: true,
+        corePath: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js'
+      });
+
+      ffmpeg.setLogger(({ type, message }) => {
+        // (한국어) ffmpeg 내부 로그를 사용자에게 보여줌 (디버깅/진행상황 파악)
+        logEl.textContent += `
+[${type}] ${message}`;
+        logEl.scrollTop = logEl.scrollHeight;
+      });
+      ffmpeg.setProgress(({ ratio }) => {
+        // (한국어) 변환 진행률 표시 (0~1)
+        bar.style.width = `${Math.min(100, Math.round((ratio || 0) * 100))}%`;
+      });
+
+      _fetchFile = fetchFile; // 전역 참조 보관
+
+      logEl.textContent += '
+Loading core… (first time may take ~10–20s)';
+      await ffmpeg.load();
+      ffmpegLoaded = true;
+      logEl.textContent += '
+Ready.';
     }
+
+    
 
     function makeDownload(data, filename, mime) {
       const blob = new Blob([data.buffer], { type: mime });
@@ -334,7 +385,7 @@
     }
 
     async function writeInputToFS(name, file) {
-      const data = await fetchFile(file);
+      const data = await _fetchFile(file);
       ffmpeg.FS('writeFile', name, data);
     }
 
